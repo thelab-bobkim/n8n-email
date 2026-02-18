@@ -1,0 +1,119 @@
+
+version: '3.8'
+
+
+
+services:
+
+  n8n:
+
+    image: n8nio/n8n:latest
+
+    container_name: n8n-renewal-system
+
+    restart: unless-stopped
+
+    ports:
+
+      - "5678:5678"
+
+    environment:
+
+      # 기본 인증
+
+      - N8N_BASIC_AUTH_ACTIVE=true
+
+      - N8N_BASIC_AUTH_USER=admin
+
+      - N8N_BASIC_AUTH_PASSWORD=ChangeThisPassword123!
+
+      
+
+      # 네트워크 설정
+
+      - N8N_HOST=0.0.0.0
+
+      - N8N_PORT=5678
+
+      - N8N_PROTOCOL=http
+
+      - WEBHOOK_URL=http://43.203.181.195:5678/
+
+      
+
+      # 보안 쿠키 비활성화 (HTTP 사용 시 필요)
+
+      - N8N_SECURE_COOKIE=false
+
+      
+
+      # 타임존
+
+      - TZ=Asia/Seoul
+
+      - GENERIC_TIMEZONE=Asia/Seoul
+
+      
+
+      # 실행 설정
+
+      - EXECUTIONS_MODE=regular
+
+      - N8N_DIAGNOSTICS_ENABLED=false
+
+      - N8N_PERSONALIZATION_ENABLED=false
+
+      
+
+    volumes:
+
+      - n8n_data:/home/node/.n8n
+
+      - ./workflows:/workflows
+
+      - ./backups:/backups
+
+    networks:
+
+      - n8n-network
+
+
+
+  redis:
+
+    image: redis:7-alpine
+
+    container_name: n8n-redis
+
+    restart: unless-stopped
+
+    volumes:
+
+      - redis_data:/data
+
+    networks:
+
+      - n8n-network
+
+    command: redis-server --appendonly yes
+
+
+
+volumes:
+
+  n8n_data:
+
+    driver: local
+
+  redis_data:
+
+    driver: local
+
+
+
+networks:
+
+  n8n-network:
+
+    driver: bridge
+

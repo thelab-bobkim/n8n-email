@@ -1,0 +1,9 @@
+.env
+
+.n8n/
+
+*.db
+
+*.log
+
+*-credentials.json

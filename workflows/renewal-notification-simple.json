@@ -1,0 +1,207 @@
+
+{
+
+  "name": "계약갱신 자동알림 (간단버전)",
+
+  "nodes": [
+
+    {
+
+      "parameters": {
+
+        "rule": {
+
+          "interval": [
+
+            {
+
+              "field": "cronExpression",
+
+              "expression": "0 8 * * *"
+
+            }
+
+          ]
+
+        }
+
+      },
+
+      "id": "schedule-trigger",
+
+      "name": "매일 오전 8시 실행",
+
+      "type": "n8n-nodes-base.scheduleTrigger",
+
+      "typeVersion": 1.2,
+
+      "position": [240, 300]
+
+    },
+
+    {
+
+      "parameters": {
+
+        "operation": "executeQuery",
+
+        "query": "SELECT \n    contract_id,\n    contract_number,\n    customer_name,\n    service_type,\n    end_date,\n    monthly_amount,\n    sales_rep_name,\n    EXTRACT(DAY FROM (end_date - CURRENT_DATE))::INT AS days_remaining\nFROM contracts \nWHERE status = 'active' \n  AND end_date >= CURRENT_DATE\n  AND end_date <= CURRENT_DATE + INTERVAL '90 days'\nORDER BY end_date ASC\nLIMIT 10;"
+
+      },
+
+      "id": "postgres-query",
+
+      "name": "계약 데이터 조회",
+
+      "type": "n8n-nodes-base.postgres",
+
+      "typeVersion": 2.4,
+
+      "position": [460, 300],
+
+      "credentials": {
+
+        "postgres": {
+
+          "id": "1",
+
+          "name": "PostgreSQL - Maintenance DB"
+
+        }
+
+      }
+
+    },
+
+    {
+
+      "parameters": {
+
+        "jsCode": "// 알림 단계 분류\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n    const days = item.json.days_remaining;\n    let stage = '';\n    let urgency = '';\n    \n    if (days >= 75) {\n        stage = 'D-90';\n        urgency = '정보';\n    } else if (days >= 50) {\n        stage = 'D-60';\n        urgency = '주의';\n    } else if (days >= 25) {\n        stage = 'D-30';\n        urgency = '긴급';\n    } else if (days >= 10) {\n        stage = 'D-14';\n        urgency = '매우긴급';\n    } else {\n        stage = 'D-7';\n        urgency = '최종경고';\n    }\n    \n    const endDate = new Date(item.json.end_date);\n    const formattedDate = endDate.toLocaleDateString('ko-KR');\n    const amount = parseInt(item.json.monthly_amount || 0).toLocaleString('ko-KR');\n    \n    results.push({\n        json: {\n            ...item.json,\n            alert_stage: stage,\n            urgency_level: urgency,\n            formatted_end_date: formattedDate,\n            formatted_amount: amount,\n            alert_message: `[${stage}] ${item.json.customer_name} 계약이 ${days}일 후(${formattedDate}) 만료됩니다.`\n        }\n    });\n}\n\nreturn results;"
+
+      },
+
+      "id": "code-classify",
+
+      "name": "알림 단계 분류",
+
+      "type": "n8n-nodes-base.code",
+
+      "typeVersion": 2,
+
+      "position": [680, 300]
+
+    },
+
+    {
+
+      "parameters": {
+
+        "jsCode": "// 메시지 생성\nconst data = $input.item.json;\n\nconst subject = `⚠️ [${data.alert_stage}] ${data.customer_name} 계약 갱신 알림`;\n\nconst body = `\n안녕하세요, ${data.sales_rep_name || '담당자'}님\n\n고객사 \"${data.customer_name}\"의 계약이 ${data.days_remaining}일 후 만료됩니다.\n\n������ 계약 정보\n- 계약번호: ${data.contract_number}\n- 서비스: ${data.service_type || '유지보수'}\n- 만료일: ${data.formatted_end_date}\n- 월 금액: ${data.formatted_amount}원\n- 긴급도: ${data.urgency_level}\n\n즉시 고객 컨택이 필요합니다.\n\n감사합니다.\n`;\n\nreturn {\n    json: {\n        ...data,\n        email_subject: subject,\n        email_body: body\n    }\n};"
+
+      },
+
+      "id": "code-message",
+
+      "name": "메시지 생성",
+
+      "type": "n8n-nodes-base.code",
+
+      "typeVersion": 2,
+
+      "position": [900, 300]
+
+    }
+
+  ],
+
+  "connections": {
+
+    "매일 오전 8시 실행": {
+
+      "main": [
+
+        [
+
+          {
+
+            "node": "계약 데이터 조회",
+
+            "type": "main",
+
+            "index": 0
+
+          }
+
+        ]
+
+      ]
+
+    },
+
+    "계약 데이터 조회": {
+
+      "main": [
+
+        [
+
+          {
+
+            "node": "알림 단계 분류",
+
+            "type": "main",
+
+            "index": 0
+
+          }
+
+        ]
+
+      ]
+
+    },
+
+    "알림 단계 분류": {
+
+      "main": [
+
+        [
+
+          {
+
+            "node": "메시지 생성",
+
+            "type": "main",
+
+            "index": 0
+
+          }
+
+        ]
+
+      ]
+
+    }
+
+  },
+
+  "pinData": {},
+
+  "settings": {
+
+    "executionOrder": "v1"
+
+  },
+
+  "staticData": null,
+
+  "tags": [],
+
+  "triggerCount": 1,
+
+  "updatedAt": "2026-02-14T00:00:00.000Z",
+
+  "versionId": "1"
+
+}
+
